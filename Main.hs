@@ -71,14 +71,14 @@ feedForward sigmoid =
   unflip .: foldlNetwork (Flip .: feedForward1 sigmoid . unflip) . Flip
 
 backPropogate1 :: (Floating f, Dim a, Dim b) =>
-  (forall f. Floating f => f -> f) ->
+  (forall f. Floating f => f -> f) -> f ->
   Layer f a b -> ITardis (Flip V f) (Flip V f) a b (Layer f a b)
-backPropogate1 sigmoid Layer{..} = ITardis $ \(Flip db, Flip za) ->
+backPropogate1 sigmoid lr Layer{..} = ITardis $ \(Flip db, Flip za) ->
   let aa = sigmoid za
-      zb = weights !* aa + biases
+      zb = weights !* aa +  biases
       da = transpose weights !* db * diff sigmoid za
-  in (Layer {weights = weights + db `outer` aa,
-             biases  = biases + db},
+  in (Layer {weights = weights - lr *!! db `outer` aa,
+             biases  = biases - lr *^ db},
       (Flip da, Flip zb))
 
 -- | Given a pair of input and expected output, a sigmoid function, and a cost
@@ -86,18 +86,18 @@ backPropogate1 sigmoid Layer{..} = ITardis $ \(Flip db, Flip za) ->
 -- and a single input.
 backPropogate' :: (Dim b, Floating f) => (V a f, V b f) ->
   (forall f. Floating f => f -> f) ->
-  (forall f. Floating f => V b f -> V b f -> f) ->
+  (forall f. Floating f => V b f -> V b f -> f) -> f ->
   Network f a b -> Network f a b
-backPropogate' (x, y) sigmoid cost network =
+backPropogate' (x, y) sigmoid cost lr network =
   let (network', (_, Flip zl)) = runITardis
-        (traverseNetwork (backPropogate1 sigmoid) network)
+        (traverseNetwork (backPropogate1 sigmoid lr) network)
         (Flip dl, Flip x)
       al = sigmoid zl
       dl = grad (cost $ fmap auto y) al * diff sigmoid zl
   in network'
 
 -- | 'backPropogate\'' with a sensible default sigmoid and cost.
-backPropogate :: (Dim b, Floating f) => (V a f, V b f) ->
+backPropogate :: (Dim b, Floating f) => (V a f, V b f) -> f ->
   Network f a b -> Network f a b
 backPropogate (x, y) = backPropogate' (x, y) logistic qd
   where
@@ -119,18 +119,19 @@ unbatch (Lr Layer{..} n) = Lr l' (unbatch n)
 
 runMiniBatch' :: (Dim w, Dim a, Dim b, Floating f) => V w (V a f, V b f) ->
   (forall f. Floating f => f -> f) ->
-  (forall f. Floating f => V b f -> V b f -> f) ->
+  (forall f. Floating f => V b f -> V b f -> f) -> f ->
   Network f a b -> Network f a b
-runMiniBatch' xys sigmoid cost =
+runMiniBatch' xys sigmoid cost lr =
   unbatch .
-  backPropogate' (collect fst xys, collect snd xys) sigmoid cost .
+  backPropogate' (collect fst xys, collect snd xys) sigmoid cost (pure lr) .
   batch
 
 runMiniBatch :: (Dim w, Dim a, Dim b, Floating f) => V w (V a f, V b f) ->
+  f ->
   Network f a b -> Network f a b
-runMiniBatch xys =
+runMiniBatch xys lr =
   unbatch .
-  backPropogate (collect fst xys, collect snd xys) .
+  backPropogate (collect fst xys, collect snd xys) (pure lr) .
   batch
 
 main :: IO ()
