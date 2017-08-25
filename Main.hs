@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs            #-}
 {-# LANGUAGE Rank2Types       #-}
@@ -155,8 +156,9 @@ randomize = randomize' StdNormal
 
 main :: IO ()
 main = do
-  let net0 = Lr (emptyLayer :: Layer () 10 3) Id .
-             Lr (emptyLayer :: Layer () 10 10) Id .
-             Lr (emptyLayer :: Layer () 3 10) Id
-  net <- runRVar (randomize net0) StdRandom :: IO (Network Double 3 3)
+  let net0 = Lr (emptyLayer :: Layer () 784 30) $
+             Lr (emptyLayer :: Layer () 30 30) $
+             Lr (emptyLayer :: Layer () 30 10) $ 
+             Id
+  net <- runRVar (randomize net0) StdRandom :: IO (Network Double 784 10)
   return ()
