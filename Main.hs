@@ -1,6 +1,8 @@
-{-# LANGUAGE GADTs           #-}
-{-# LANGUAGE Rank2Types      #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs            #-}
+{-# LANGUAGE Rank2Types       #-}
+{-# LANGUAGE RecordWildCards  #-}
+{-# LANGUAGE PolyKinds        #-}
 module Main where
 
 import           Control.Category
@@ -8,6 +10,7 @@ import           Control.Monad.Indexed
 
 import           Data.Composition
 import           Data.Distributive
+import           Data.Random
 
 import           Linear
 import           Linear.V
@@ -17,6 +20,7 @@ import           Numeric.AD
 import           Prelude               hiding (id, (.))
 
 import           IndexedTardis
+import           WrapIndex
 
 -- | The type representing a single sigmoid layer
 data Layer f a b = Layer {weights :: V b (V a f), biases :: V b f}
@@ -134,5 +138,25 @@ runMiniBatch xys lr =
   backPropogate (collect fst xys, collect snd xys) (pure lr) .
   batch
 
+emptyLayer :: (Dim a, Dim b) => Layer () a b
+emptyLayer = Layer {weights = pure (pure ()), biases = pure ()}
+
+randomizeLayer' :: (Dim a, Dim b, Distribution d t) => d t -> Layer x a b -> RVar (Layer t a b)
+randomizeLayer' dist Layer{..} =
+  Layer <$>
+  traverse (traverse (\_ -> rvar dist)) weights <*>
+  traverse (\_ -> rvar dist) biases
+
+randomize' :: Distribution d t => d t -> Network x a b -> RVar (Network t a b)
+randomize' dist = iunwrap . traverseNetwork (IWrap . randomizeLayer' dist)
+
+randomize :: Distribution Normal t => Network x a b -> RVar (Network t a b)
+randomize = randomize' StdNormal
+
 main :: IO ()
-main = putStrLn "Hello, Haskell!"
+main = do
+  let net0 = Lr (emptyLayer :: Layer () 10 3) Id .
+             Lr (emptyLayer :: Layer () 10 10) Id .
+             Lr (emptyLayer :: Layer () 3 10) Id
+  net <- runRVar (randomize net0) StdRandom :: IO (Network Double 3 3)
+  return ()

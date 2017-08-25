@@ -1,3 +1,4 @@
+{-# LANGUAGE PolyKinds #-}
 module IndexedTardis where
 
 import           Control.Monad.Indexed

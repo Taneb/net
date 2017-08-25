@@ -17,8 +17,8 @@ cabal-version:       >=1.10
 
 executable net
   main-is:             Main.hs
-  other-modules:       IndexedTardis
+  other-modules:       IndexedTardis, WrapIndex
   -- other-extensions:    
-  build-depends:       base >=4.9 && <4.10, linear, ad, distributive, indexed, composition
+  build-depends:       base >=4.9 && <4.10, linear, ad, distributive, indexed, composition, random-fu
   -- hs-source-dirs:      
   default-language:    Haskell2010
